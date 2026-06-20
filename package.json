@@ -18,7 +18,8 @@
     "dev": "tsc && node dist/cli.js",
     "start": "node dist/cli.js",
     "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\"",
-    "clean": "node -e \"const fs=require('fs');for(const d of ['dist','dist-test'])fs.rmSync(d,{recursive:true,force:true})\""
+    "clean": "node -e \"const fs=require('fs');for(const d of ['dist','dist-test'])fs.rmSync(d,{recursive:true,force:true})\"",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "strava",
@@ -27,7 +28,16 @@
     "fitness",
     "agent"
   ],
+  "author": "Stephen Godderidge <22121125+stephengodderidge@users.noreply.github.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stephengodderidge/strava-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/stephengodderidge/strava-cli/issues"
+  },
+  "homepage": "https://github.com/stephengodderidge/strava-cli#readme",
   "devDependencies": {
     "typescript": "^5.5.0",
     "@types/node": "^20.14.0"
