@@ -1,0 +1,35 @@
+{
+  "name": "strava-cli",
+  "version": "0.1.0",
+  "description": "Fast, deterministic CLI for fetching a single athlete's Strava data, designed for agent and human use.",
+  "type": "module",
+  "bin": {
+    "strava": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && node dist/cli.js",
+    "start": "node dist/cli.js",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\"",
+    "clean": "node -e \"const fs=require('fs');for(const d of ['dist','dist-test'])fs.rmSync(d,{recursive:true,force:true})\"",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "strava",
+    "cli",
+    "api",
+    "fitness",
+    "agent"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}

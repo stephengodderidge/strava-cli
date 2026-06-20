@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-test/
+
+# Local secrets / tokens
+.env
+.env.local
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
