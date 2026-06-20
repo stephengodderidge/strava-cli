@@ -7,10 +7,12 @@ import path from 'node:path';
 import {
   cacheDir,
   configDir,
+  credentialsFilePath,
   loadDotEnv,
   oauthPort,
   readCredentials,
   resetDotEnvForTests,
+  saveCredentials,
   tokenFilePath,
 } from '../src/lib/config.js';
 
@@ -72,5 +74,42 @@ test('readCredentials reads from the environment', () => {
     delete process.env.STRAVA_CLIENT_ID;
     delete process.env.STRAVA_CLIENT_SECRET;
     delete process.env.STRAVA_REFRESH_TOKEN;
+  }
+});
+
+test('saveCredentials persists to a file that readCredentials falls back to', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strava-creds-'));
+  process.env.STRAVA_CONFIG_DIR = dir;
+  delete process.env.STRAVA_CLIENT_ID;
+  delete process.env.STRAVA_CLIENT_SECRET;
+  try {
+    resetDotEnvForTests();
+    saveCredentials('file-cid', 'file-sec');
+    assert.ok(fs.existsSync(credentialsFilePath()));
+    const c = readCredentials();
+    assert.equal(c.clientId, 'file-cid');
+    assert.equal(c.clientSecret, 'file-sec');
+  } finally {
+    delete process.env.STRAVA_CONFIG_DIR;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('env credentials take precedence over the stored file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strava-creds-'));
+  process.env.STRAVA_CONFIG_DIR = dir;
+  try {
+    saveCredentials('file-cid', 'file-sec');
+    process.env.STRAVA_CLIENT_ID = 'env-cid';
+    process.env.STRAVA_CLIENT_SECRET = 'env-sec';
+    resetDotEnvForTests();
+    const c = readCredentials();
+    assert.equal(c.clientId, 'env-cid');
+    assert.equal(c.clientSecret, 'env-sec');
+  } finally {
+    delete process.env.STRAVA_CONFIG_DIR;
+    delete process.env.STRAVA_CLIENT_ID;
+    delete process.env.STRAVA_CLIENT_SECRET;
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

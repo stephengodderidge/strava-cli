@@ -34,7 +34,7 @@ Usage:
   strava <command> [options]
 
 Commands:
-  auth         Authenticate (login | status | logout)
+  auth         Authenticate (setup | login | status | logout)
   profile      Show the authenticated athlete's profile
   activities   List activities (date filters, pagination, type filter)
   activity     Show a single activity by id (+ --laps, --zones)
@@ -56,7 +56,7 @@ Output contract:
   Exit codes: 0 ok, 2 usage, 3 auth, 4 rate-limited, 5 not-found, 1 other.
 
 Examples:
-  strava auth login
+  strava auth setup
   strava profile
   strava activities --after 2024-01-01 --limit 10
   strava activity 1234567890 --laps --zones

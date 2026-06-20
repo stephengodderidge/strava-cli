@@ -10,17 +10,20 @@
 
 import http from 'node:http';
 import fs from 'node:fs';
+import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
 import { URL } from 'node:url';
 
 import {
   DEFAULT_SCOPES,
+  STRAVA_API_SETTINGS_URL,
   STRAVA_OAUTH_AUTHORIZE,
   STRAVA_OAUTH_TOKEN,
   configDir,
   ensureDir,
   oauthPort,
   readCredentials,
+  saveCredentials,
   tokenFilePath,
 } from './config.js';
 import { AppError } from './output.js';
@@ -186,12 +189,78 @@ export interface LoginResult {
   expires_at: number;
 }
 
+export interface SetupResult {
+  credentials_file: string;
+  client_id: string;
+  logged_in: boolean;
+  scope?: string;
+  expires_at?: number;
+}
+
+/**
+ * Interactive credential setup. Opens the Strava API settings page, prompts for
+ * the Client ID / Client Secret, persists them to the config dir, and (unless
+ * disabled) immediately runs the OAuth login.
+ *
+ * Note: creating the Strava API application itself is a manual, web-only step —
+ * Strava exposes no API to register an app — so this command guides that step
+ * and captures the resulting credentials rather than automating registration.
+ */
+export async function setup(opts: { runLogin?: boolean } = {}): Promise<SetupResult> {
+  if (!process.stdin.isTTY) {
+    throw new AppError('usage', 'auth setup requires an interactive terminal.', {
+      hint: 'Run `strava auth setup` directly in a terminal, or set STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET in the environment.',
+    });
+  }
+
+  process.stderr.write(
+    [
+      'Strava app registration is a one-time, web-only step.',
+      `Opening ${STRAVA_API_SETTINGS_URL} — create an application (or open your existing one) and:`,
+      '  • set "Authorization Callback Domain" to exactly: localhost',
+      '  • copy the Client ID and Client Secret shown on that page',
+      '',
+    ].join('\n'),
+  );
+  openBrowser(STRAVA_API_SETTINGS_URL);
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  let clientId: string;
+  let clientSecret: string;
+  try {
+    clientId = (await rl.question('Client ID: ')).trim();
+    clientSecret = (await rl.question('Client Secret: ')).trim();
+  } finally {
+    rl.close();
+  }
+
+  if (!clientId || !clientSecret) {
+    throw new AppError('config', 'Both Client ID and Client Secret are required.');
+  }
+
+  saveCredentials(clientId, clientSecret);
+
+  const result: SetupResult = {
+    credentials_file: configDir(),
+    client_id: clientId,
+    logged_in: false,
+  };
+
+  if (opts.runLogin !== false) {
+    const login_ = await login();
+    result.logged_in = true;
+    result.scope = login_.scope;
+    result.expires_at = login_.expires_at;
+  }
+  return result;
+}
+
 /** Run the interactive authorization-code flow via a loopback redirect. */
 export async function login(scopes: string = DEFAULT_SCOPES): Promise<LoginResult> {
   const creds = readCredentials();
   if (!creds.clientId || !creds.clientSecret) {
     throw new AppError('config', 'Missing Strava app credentials.', {
-      hint: 'Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET (see .env.example). Create an app at https://www.strava.com/settings/api',
+      hint: 'Run `strava auth setup`, or set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET (see .env.example). Create an app at https://www.strava.com/settings/api',
     });
   }
 

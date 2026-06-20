@@ -30,8 +30,19 @@ Without `npm link`, run it as `node dist/cli.js <command>`.
 
 ## Configure credentials
 
-Copy `.env.example` to `.env` (auto-loaded from the working directory) or export
-the variables in your shell:
+First, register a Strava API application (one-time, web-only — Strava has no API
+to automate this): https://www.strava.com/settings/api. Set the **Authorization
+Callback Domain** to `localhost`, and note the **Client ID** and **Client Secret**.
+
+The easiest way to store them is the guided setup command, which opens that page,
+prompts for the two values, saves them under your OS config dir, and logs you in:
+
+```bash
+strava auth setup
+```
+
+Alternatively, provide them via the environment — copy `.env.example` to `.env`
+(auto-loaded from the working directory) or export them in your shell:
 
 ```ini
 STRAVA_CLIENT_ID=12345
@@ -40,13 +51,22 @@ STRAVA_CLIENT_SECRET=your_client_secret
 STRAVA_REFRESH_TOKEN=...
 ```
 
-Credential/token precedence: a valid cached token → refresh (refresh token +
-client id/secret) → a directly-supplied `STRAVA_ACCESS_TOKEN`.
+App credentials are resolved env first (`STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET`,
+including `.env`), then the file written by `auth setup`. Token precedence at call
+time: a valid cached token → refresh (refresh token + client id/secret) → a
+directly-supplied `STRAVA_ACCESS_TOKEN`.
 
 ## Authenticate
 
-One-time interactive login (opens a browser, captures the redirect on a
-loopback server, stores tokens under your OS config dir):
+Recommended — guided, one-time setup (enter credentials + browser login):
+
+```bash
+strava auth setup            # prompts for Client ID/Secret, then logs in
+strava auth setup --no-login # just save credentials
+```
+
+Or, if credentials are already in the environment, just log in (opens a browser,
+captures the redirect on a loopback server, stores tokens under your OS config dir):
 
 ```bash
 strava auth login
@@ -54,7 +74,7 @@ strava auth status
 strava auth logout
 ```
 
-For headless/agent setups, skip `auth login` entirely: set
+For headless/agent setups, skip the browser entirely: set
 `STRAVA_REFRESH_TOKEN` + `STRAVA_CLIENT_ID` + `STRAVA_CLIENT_SECRET`, and the CLI
 refreshes access tokens automatically.
 
@@ -70,7 +90,7 @@ refreshes access tokens automatically.
 | `strava gear <id>` | Gear (bike/shoe) detail |
 | `strava summary [--days <n>]` | Aggregated recent-training summary |
 | `strava cache info\|clear` | Manage the local response cache |
-| `strava auth login\|status\|logout` | Authentication |
+| `strava auth setup\|login\|status\|logout` | Authentication |
 
 ### `activities` options
 

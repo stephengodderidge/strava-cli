@@ -86,6 +86,36 @@ export function tokenFilePath(): string {
   return path.join(configDir(), 'tokens.json');
 }
 
+/** Path to the persisted app-credentials file (client id/secret). */
+export function credentialsFilePath(): string {
+  return path.join(configDir(), 'credentials.json');
+}
+
+interface StoredCredentials {
+  clientId?: string;
+  clientSecret?: string;
+}
+
+function readStoredCredentials(): StoredCredentials {
+  const file = credentialsFilePath();
+  if (!fs.existsSync(file)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as StoredCredentials;
+  } catch {
+    return {};
+  }
+}
+
+/** Persist app credentials to the config dir with restrictive permissions. */
+export function saveCredentials(clientId: string, clientSecret: string): void {
+  ensureDir(configDir());
+  fs.writeFileSync(
+    credentialsFilePath(),
+    JSON.stringify({ clientId, clientSecret }, null, 2),
+    { mode: 0o600 },
+  );
+}
+
 export interface Credentials {
   clientId?: string;
   clientSecret?: string;
@@ -94,12 +124,17 @@ export interface Credentials {
   envAccessToken?: string;
 }
 
-/** Read app credentials and any directly-supplied tokens from the environment. */
+/**
+ * Read app credentials and any directly-supplied tokens. App credentials come
+ * from the environment first (env > .env), then fall back to the stored
+ * credentials file written by `strava auth setup`.
+ */
 export function readCredentials(): Credentials {
   loadDotEnv();
+  const stored = readStoredCredentials();
   return {
-    clientId: process.env.STRAVA_CLIENT_ID,
-    clientSecret: process.env.STRAVA_CLIENT_SECRET,
+    clientId: process.env.STRAVA_CLIENT_ID ?? stored.clientId,
+    clientSecret: process.env.STRAVA_CLIENT_SECRET ?? stored.clientSecret,
     envRefreshToken: process.env.STRAVA_REFRESH_TOKEN,
     envAccessToken: process.env.STRAVA_ACCESS_TOKEN,
   };
@@ -118,6 +153,7 @@ export function ensureDir(dir: string): void {
 }
 
 export const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
+export const STRAVA_API_SETTINGS_URL = 'https://www.strava.com/settings/api';
 export const STRAVA_OAUTH_AUTHORIZE = 'https://www.strava.com/oauth/authorize';
 export const STRAVA_OAUTH_TOKEN = 'https://www.strava.com/oauth/token';
 export const DEFAULT_SCOPES = 'read,activity:read_all,profile:read_all';
