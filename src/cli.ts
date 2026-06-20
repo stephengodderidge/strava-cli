@@ -32,6 +32,8 @@ const TOP_HELP = `strava — fast, deterministic CLI for a single athlete's Stra
 
 Usage:
   strava <command> [options]
+  strava help [command]              Show help (optionally for one command)
+  strava <command> --help            Show options for a specific command
 
 Commands:
   auth         Authenticate (setup | login | status | logout)
@@ -51,16 +53,33 @@ Global options:
   -h, --help              Show help
   --version               Show version
 
-Output contract:
-  stdout = data (JSON by default). stderr = errors as {"error":{code,message,hint}}.
-  Exit codes: 0 ok, 2 usage, 3 auth, 4 rate-limited, 5 not-found, 1 other.
+First-time setup:
+  Run \`strava auth setup\` once. It walks you through registering a Strava API
+  app (bring-your-own-app) and logs you in. Check state with \`strava auth status\`.
+
+Output contract (for scripts and agents):
+  • stdout = result data only. JSON by default (pretty-printed); pass
+    --format table for a human view. Fields are passed through from the Strava
+    API, so unknown/extra fields may appear.
+  • stderr = diagnostics and errors as {"error":{"code","message","hint"?}}.
+  • Exit codes: 0 ok, 1 generic/API error, 2 usage, 3 auth, 4 rate-limited,
+    5 not-found. Branch on the exit code, not on stderr text.
+
+Data conventions:
+  • Distances/elevation in meters, durations in seconds, speeds in meters/second.
+  • Timestamps are ISO-8601 (start_date is UTC; start_date_local is the
+    athlete's local time).
+  • Date filters (--after/--before) accept YYYY-MM-DD, full ISO-8601, or a unix
+    timestamp. IDs (activity, gear) are taken from prior responses.
 
 Examples:
   strava auth setup
   strava profile
-  strava activities --after 2024-01-01 --limit 10
+  strava activities --after 2024-01-01 --type Run --limit 10
   strava activity 1234567890 --laps --zones
-  strava summary --days 28
+  strava stats
+  strava summary --days 28               # compact recent-training overview
+  strava activities --format table       # human-friendly view
 `;
 
 async function main(): Promise<number> {
@@ -74,6 +93,24 @@ async function main(): Promise<number> {
   }
   if (first === '--version' || first === '-V') {
     process.stdout.write(`${VERSION}\n`);
+    return ExitCode.Ok;
+  }
+
+  // `strava help [command]` — top-level help, or delegate to a command's --help.
+  if (first === 'help') {
+    const target = argv[1];
+    if (target) {
+      if (!COMMANDS[target]) {
+        return reportError(
+          new AppError('usage', `Unknown command "${target}".`, {
+            hint: 'Run `strava help` to see available commands.',
+          }),
+        );
+      }
+      const mod = await COMMANDS[target]();
+      return await mod.run(['--help']);
+    }
+    process.stdout.write(TOP_HELP);
     return ExitCode.Ok;
   }
 

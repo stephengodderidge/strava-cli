@@ -14,35 +14,84 @@ documented exit codes.
 ## Requirements
 
 - Node.js **18+** (uses the global `fetch` and `node:util` `parseArgs`).
-- A Strava API application (free): https://www.strava.com/settings/api
-  - Note the **Client ID** and **Client Secret**.
-  - Set **Authorization Callback Domain** to `localhost`.
+- Your own free Strava API application — see [Getting started](#getting-started).
+  This CLI is **bring-your-own-app**: it never ships shared credentials.
 
 ## Install
 
 ```bash
-npm install
-npm run build      # compiles TypeScript -> dist/
-npm link           # optional: exposes a global `strava` command
+npm install -g strava-cli
 ```
 
-Without `npm link`, run it as `node dist/cli.js <command>`.
+This puts a `strava` command on your PATH. Verify with:
 
-## Configure credentials
+```bash
+strava --version
+```
 
-First, register a Strava API application (one-time, web-only — Strava has no API
-to automate this): https://www.strava.com/settings/api. Set the **Authorization
-Callback Domain** to `localhost`, and note the **Client ID** and **Client Secret**.
+> Not yet published to npm? Install it from a local checkout instead — it behaves
+> exactly like a global install:
+>
+> ```bash
+> git clone <repo-url> && cd strava-cli
+> npm install            # builds dist/ automatically (via the prepare hook)
+> npm install -g .       # installs the global `strava` command
+> ```
+>
+> For active development, `npm link` is handier (symlinks your working copy), and
+> you can always run commands directly as `node dist/cli.js <command>`.
 
-The easiest way to store them is the guided setup command, which opens that page,
-prompts for the two values, saves them under your OS config dir, and logs you in:
+## Getting started
+
+**1. Register a Strava API application** (one-time, web-only — Strava has no API
+to automate this). Go to <https://www.strava.com/settings/api> and:
+
+- give it any name and website (e.g. `http://localhost`);
+- set **Authorization Callback Domain** to exactly `localhost`;
+- keep the page open — you'll copy the **Client ID** and **Client Secret** next.
+
+**2. Configure the app and log in.** This opens the settings page, prompts you to
+paste the Client ID and Client Secret, then opens your browser to authorize:
 
 ```bash
 strava auth setup
 ```
 
-Alternatively, provide them via the environment — copy `.env.example` to `.env`
-(auto-loaded from the working directory) or export them in your shell:
+**3. Confirm you're authenticated:**
+
+```bash
+strava auth status
+```
+
+**4. Query your data:**
+
+```bash
+strava profile
+strava summary --days 28
+strava activities --type Run --limit 10 --format table
+strava stats
+```
+
+That's it — access tokens refresh automatically, so steps 1–2 are one-time.
+
+> If `strava` isn't found right after installing, open a **new** terminal so it
+> picks up the updated PATH.
+
+## Authentication & configuration
+
+`strava auth setup` is the easy path, but you have options:
+
+```bash
+strava auth setup                                                # interactive
+strava auth setup --client-id 12345 --client-secret <secret>     # scriptable
+strava auth setup --client-id 12345 --client-secret <secret> --no-login
+strava auth login      # (re-)run the browser login if credentials already exist
+strava auth status     # show the configured app + token expiry
+strava auth logout     # delete stored tokens
+```
+
+Alternatively, provide credentials via the environment — copy `.env.example` to
+`.env` (auto-loaded from the working directory) or export them in your shell:
 
 ```ini
 STRAVA_CLIENT_ID=12345
@@ -51,32 +100,12 @@ STRAVA_CLIENT_SECRET=your_client_secret
 STRAVA_REFRESH_TOKEN=...
 ```
 
-App credentials are resolved env first (`STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET`,
+App credentials resolve **env first** (`STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET`,
 including `.env`), then the file written by `auth setup`. Token precedence at call
 time: a valid cached token → refresh (refresh token + client id/secret) → a
-directly-supplied `STRAVA_ACCESS_TOKEN`.
-
-## Authenticate
-
-Recommended — guided, one-time setup (enter credentials + browser login):
-
-```bash
-strava auth setup            # prompts for Client ID/Secret, then logs in
-strava auth setup --no-login # just save credentials
-```
-
-Or, if credentials are already in the environment, just log in (opens a browser,
-captures the redirect on a loopback server, stores tokens under your OS config dir):
-
-```bash
-strava auth login
-strava auth status
-strava auth logout
-```
-
-For headless/agent setups, skip the browser entirely: set
-`STRAVA_REFRESH_TOKEN` + `STRAVA_CLIENT_ID` + `STRAVA_CLIENT_SECRET`, and the CLI
-refreshes access tokens automatically.
+directly-supplied `STRAVA_ACCESS_TOKEN`. For headless/agent setups you can skip
+the browser entirely by setting `STRAVA_REFRESH_TOKEN` + `STRAVA_CLIENT_ID` +
+`STRAVA_CLIENT_SECRET`.
 
 ## Commands
 

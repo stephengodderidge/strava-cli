@@ -152,6 +152,9 @@ export async function forceRefresh(): Promise<string | null> {
 export interface AuthStatus {
   authenticated: boolean;
   source: 'config-file' | 'env-refresh-token' | 'env-access-token' | 'none';
+  app_configured: boolean;
+  client_id?: string;
+  app_source?: 'env' | 'config-file';
   expires_at?: number;
   expires_in_seconds?: number;
   scope?: string;
@@ -164,11 +167,19 @@ export function authStatus(): AuthStatus {
   const canRefresh = Boolean(
     (creds.envRefreshToken ?? fileTokens?.refresh_token) && creds.clientId && creds.clientSecret,
   );
+  const app: Pick<AuthStatus, 'app_configured' | 'client_id' | 'app_source'> = creds.clientId
+    ? {
+        app_configured: true,
+        client_id: creds.clientId,
+        app_source: process.env.STRAVA_CLIENT_ID ? 'env' : 'config-file',
+      }
+    : { app_configured: false };
 
   if (fileTokens) {
     return {
       authenticated: true,
       source: 'config-file',
+      ...app,
       expires_at: fileTokens.expires_at,
       expires_in_seconds: fileTokens.expires_at - nowSeconds(),
       scope: fileTokens.scope,
@@ -176,12 +187,12 @@ export function authStatus(): AuthStatus {
     };
   }
   if (creds.envRefreshToken) {
-    return { authenticated: true, source: 'env-refresh-token', can_refresh: canRefresh };
+    return { authenticated: true, source: 'env-refresh-token', ...app, can_refresh: canRefresh };
   }
   if (creds.envAccessToken) {
-    return { authenticated: true, source: 'env-access-token', can_refresh: false };
+    return { authenticated: true, source: 'env-access-token', ...app, can_refresh: false };
   }
-  return { authenticated: false, source: 'none', can_refresh: false };
+  return { authenticated: false, source: 'none', ...app, can_refresh: false };
 }
 
 export interface LoginResult {
@@ -198,40 +209,47 @@ export interface SetupResult {
 }
 
 /**
- * Interactive credential setup. Opens the Strava API settings page, prompts for
- * the Client ID / Client Secret, persists them to the config dir, and (unless
- * disabled) immediately runs the OAuth login.
+ * Configure a bring-your-own Strava app and (optionally) log in.
+ *
+ *  - If clientId/clientSecret are provided (e.g. via flags), they are used
+ *    directly — scriptable and non-interactive.
+ *  - Otherwise, in a TTY, the Strava API settings page is opened and the values
+ *    are prompted for interactively.
  *
  * Note: creating the Strava API application itself is a manual, web-only step —
  * Strava exposes no API to register an app — so this command guides that step
  * and captures the resulting credentials rather than automating registration.
  */
-export async function setup(opts: { runLogin?: boolean } = {}): Promise<SetupResult> {
-  if (!process.stdin.isTTY) {
-    throw new AppError('usage', 'auth setup requires an interactive terminal.', {
-      hint: 'Run `strava auth setup` directly in a terminal, or set STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET in the environment.',
-    });
-  }
+export async function setup(
+  opts: { clientId?: string; clientSecret?: string; runLogin?: boolean } = {},
+): Promise<SetupResult> {
+  let clientId = opts.clientId?.trim();
+  let clientSecret = opts.clientSecret?.trim();
 
-  process.stderr.write(
-    [
-      'Strava app registration is a one-time, web-only step.',
-      `Opening ${STRAVA_API_SETTINGS_URL} — create an application (or open your existing one) and:`,
-      '  • set "Authorization Callback Domain" to exactly: localhost',
-      '  • copy the Client ID and Client Secret shown on that page',
-      '',
-    ].join('\n'),
-  );
-  openBrowser(STRAVA_API_SETTINGS_URL);
+  if (!clientId || !clientSecret) {
+    if (!process.stdin.isTTY) {
+      throw new AppError('config', 'Missing Strava app credentials.', {
+        hint: 'Pass --client-id and --client-secret, run `strava auth setup` in an interactive terminal, or set STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET.',
+      });
+    }
+    process.stderr.write(
+      [
+        'Strava app registration is a one-time, web-only step.',
+        `Opening ${STRAVA_API_SETTINGS_URL} — create an application (or open your existing one) and:`,
+        '  • set "Authorization Callback Domain" to exactly: localhost',
+        '  • copy the Client ID and Client Secret shown on that page',
+        '',
+      ].join('\n'),
+    );
+    openBrowser(STRAVA_API_SETTINGS_URL);
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
-  let clientId: string;
-  let clientSecret: string;
-  try {
-    clientId = (await rl.question('Client ID: ')).trim();
-    clientSecret = (await rl.question('Client Secret: ')).trim();
-  } finally {
-    rl.close();
+    const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+    try {
+      if (!clientId) clientId = (await rl.question('Client ID: ')).trim();
+      if (!clientSecret) clientSecret = (await rl.question('Client Secret: ')).trim();
+    } finally {
+      rl.close();
+    }
   }
 
   if (!clientId || !clientSecret) {

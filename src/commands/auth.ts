@@ -6,24 +6,32 @@ import { output } from './_shared.js';
 
 const OPTIONS: OptionMap = {
   'no-login': { type: 'boolean' },
+  'client-id': { type: 'string' },
+  'client-secret': { type: 'string' },
 };
 
 const HELP = `strava auth — manage authentication
 
 Usage:
-  strava auth setup     Enter Client ID/Secret and log in (interactive, recommended)
+  strava auth setup     Configure your Strava app + log in (interactive, recommended)
   strava auth login     Authorize via the browser and store tokens
-  strava auth status    Show whether the CLI is authenticated
+  strava auth status    Show the configured app and whether you're authenticated
   strava auth logout    Delete stored tokens
 
-Options:
-  --no-login            (with setup) save credentials but skip the browser login
+Options (setup):
+  --client-id <id>       Provide the Client ID non-interactively
+  --client-secret <s>    Provide the Client Secret non-interactively
+  --no-login             Save credentials but skip the browser login
 
-Setup:
-  Creating the Strava API app is a one-time, web-only step at
+Bring-your-own app:
+  Registering the Strava API app is a one-time, web-only step at
   https://www.strava.com/settings/api (set the callback domain to "localhost").
-  \`strava auth setup\` opens that page, then stores the Client ID/Secret for you.
-  Alternatively, set STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET (see .env.example).
+  Then point the CLI at it, either interactively:
+      strava auth setup
+  or non-interactively:
+      strava auth setup --client-id 12345 --client-secret <secret>
+  (Environment variables STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET also work and
+  take precedence over the stored values.)
 `;
 
 export async function run(args: string[]): Promise<number> {
@@ -36,7 +44,12 @@ export async function run(args: string[]): Promise<number> {
   const sub = positionals[0];
   switch (sub) {
     case 'setup': {
-      const result = await setup({ runLogin: !values['no-login'] });
+      const result = await setup({
+        clientId: typeof values['client-id'] === 'string' ? values['client-id'] : undefined,
+        clientSecret:
+          typeof values['client-secret'] === 'string' ? values['client-secret'] : undefined,
+        runLogin: !values['no-login'],
+      });
       output(result, global);
       return ExitCode.Ok;
     }
