@@ -48,6 +48,9 @@ Commands:
 
 Global options:
   --format <json|table>   Output format (default: json)
+  --fields <a,b,c>        Keep only these top-level fields (default: all fields).
+                          Repeatable: --fields a --fields b (handy when your
+                          shell, e.g. PowerShell, mangles comma lists).
   --no-cache              Bypass the local response cache
   -v, --verbose           Print rate-limit usage to stderr
   -h, --help              Show help
@@ -80,6 +83,7 @@ Examples:
   strava stats
   strava summary --days 28               # compact recent-training overview
   strava activities --format table       # human-friendly view
+  strava activities --fields id,name,distance,moving_time --format table
 `;
 
 async function main(): Promise<number> {

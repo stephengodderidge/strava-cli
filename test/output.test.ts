@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { AppError, ExitCode, emit, reportError } from '../src/lib/output.js';
+import { AppError, ExitCode, emit, project, reportError } from '../src/lib/output.js';
 import { capture } from './helpers.js';
 
 test('AppError maps codes to exit codes', () => {
@@ -57,4 +57,25 @@ test('emit table renders a single object as key/value', async () => {
 test('emit table renders an empty array', async () => {
   const { stdout } = await capture(() => emit([], 'table'));
   assert.equal(stdout.trim(), '(no rows)');
+});
+
+test('project picks fields from a single object and omits absent ones', () => {
+  const result = project({ id: 1, name: 'a', extra: true }, ['id', 'name', 'missing']);
+  assert.deepEqual(result, { id: 1, name: 'a' });
+});
+
+test('project maps over an array of objects', () => {
+  const rows = [
+    { id: 1, name: 'a', big: 'x' },
+    { id: 2, name: 'b', big: 'y' },
+  ];
+  assert.deepEqual(project(rows, ['id', 'name']), [
+    { id: 1, name: 'a' },
+    { id: 2, name: 'b' },
+  ]);
+});
+
+test('project leaves non-objects and empty field lists untouched', () => {
+  assert.equal(project('scalar', ['id']), 'scalar');
+  assert.deepEqual(project({ a: 1 }, []), { a: 1 });
 });

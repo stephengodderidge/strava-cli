@@ -13,6 +13,8 @@ export interface GlobalContext {
   format: OutputFormat;
   useCache: boolean;
   verbose: boolean;
+  /** Optional top-level field allow-list for output projection. */
+  fields?: string[];
 }
 
 export interface OptionSpec {
@@ -25,6 +27,7 @@ export type OptionMap = Record<string, OptionSpec>;
 
 const GLOBAL_OPTIONS: OptionMap = {
   format: { type: 'string' },
+  fields: { type: 'string', multiple: true },
   'no-cache': { type: 'boolean' },
   verbose: { type: 'boolean', short: 'v' },
   help: { type: 'boolean', short: 'h' },
@@ -56,9 +59,28 @@ export function parseCommand(args: string[], options: OptionMap = {}): ParsedCom
       format: normalizeFormat(parsed.values.format),
       useCache: !parsed.values['no-cache'],
       verbose: Boolean(parsed.values.verbose),
+      fields: parseFields(parsed.values.fields),
     },
     helpRequested: Boolean(parsed.values.help),
   };
+}
+
+function parseFields(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  // With `multiple: true`, the value is an array; each entry may itself be a
+  // comma-separated list. This supports both `--fields a,b` and the
+  // shell-quoting-free `--fields a --fields b` form.
+  const raw = Array.isArray(value) ? value : [value];
+  const fields = raw
+    .flatMap((v) => String(v).split(','))
+    .map((f) => f.trim())
+    .filter((f) => f.length > 0);
+  if (fields.length === 0) {
+    throw new AppError('usage', 'Option --fields requires at least one field name.', {
+      hint: 'Example: --fields id,name,distance',
+    });
+  }
+  return fields;
 }
 
 function normalizeFormat(value: unknown): OutputFormat {

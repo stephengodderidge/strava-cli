@@ -58,6 +58,30 @@ export class AppError extends Error {
 
 export type OutputFormat = 'json' | 'table';
 
+/**
+ * Project a result down to an allow-list of top-level fields. Applied to each
+ * element of an array, or to a single object; non-objects pass through. Fields
+ * absent from a record are simply omitted. Used by the optional --fields flag.
+ */
+export function project(data: unknown, fields: string[]): unknown {
+  if (fields.length === 0) return data;
+  const pick = (obj: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const f of fields) {
+      if (Object.prototype.hasOwnProperty.call(obj, f)) out[f] = obj[f];
+    }
+    return out;
+  };
+  const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+    v !== null && typeof v === 'object' && !Array.isArray(v);
+
+  if (Array.isArray(data)) {
+    return data.map((el) => (isPlainObject(el) ? pick(el) : el));
+  }
+  if (isPlainObject(data)) return pick(data);
+  return data;
+}
+
 /** Write a successful result to stdout in the requested format. */
 export function emit(data: unknown, format: OutputFormat): void {
   if (format === 'table') {

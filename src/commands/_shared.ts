@@ -5,7 +5,7 @@
  */
 
 import { StravaClient } from '../lib/client.js';
-import { emit } from '../lib/output.js';
+import { emit, project } from '../lib/output.js';
 import type { GlobalContext } from '../lib/args.js';
 
 export function makeClient(ctx: GlobalContext): StravaClient {
@@ -13,7 +13,8 @@ export function makeClient(ctx: GlobalContext): StravaClient {
 }
 
 export function output(data: unknown, ctx: GlobalContext, client?: StravaClient): void {
-  emit(data, ctx.format);
+  const result = ctx.fields ? project(data, ctx.fields) : data;
+  emit(result, ctx.format);
   if (ctx.verbose && client?.lastRateLimit) {
     process.stderr.write(`rate-limit: ${JSON.stringify(client.lastRateLimit)}\n`);
   }

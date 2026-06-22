@@ -25,6 +25,7 @@ Options:
   --per-page <n>        Items per page (default 30, max 200)
   --limit <n>           Cap the number of returned activities (client-side)
   --type <sport>        Filter by sport type (e.g. Run, Ride, Swim)
+  --fields <a,b,c>      Keep only these top-level fields (e.g. id,name,distance)
   --format <json|table> Output format (default: json)
   --no-cache            Bypass the local response cache
 `;

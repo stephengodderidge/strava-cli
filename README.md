@@ -136,10 +136,20 @@ the browser entirely by setting `STRAVA_REFRESH_TOKEN` + `STRAVA_CLIENT_ID` +
 
 ```
 --format <json|table>   Output format (default: json)
+--fields <a,b,c>        Keep only these top-level fields (default: all fields).
+                        Repeatable: --fields a --fields b (use this form, or
+                        quote the list, in PowerShell which splits commas).
 --no-cache              Bypass the local response cache
 -v, --verbose           Print rate-limit usage to stderr
 -h, --help              Show help (top-level or per command)
 --version               Show version
+```
+
+`--fields` is handy for trimming wide responses (e.g. the `activities` list has
+many columns) into a readable table or a skinny JSON payload:
+
+```bash
+strava activities --limit 10 --fields name,distance,moving_time --format table
 ```
 
 ## Output & exit-code contract (for agents)
