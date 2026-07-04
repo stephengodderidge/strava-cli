@@ -10,6 +10,7 @@
 
 import http from 'node:http';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
 import { URL } from 'node:url';
@@ -284,14 +285,20 @@ export async function login(scopes: string = DEFAULT_SCOPES): Promise<LoginResul
 
   const port = oauthPort();
   const redirectUri = `http://localhost:${port}/callback`;
+  // CSRF protection (RFC 6749 §10.12): bind this request to a random, unguessable
+  // value that Strava echoes back on the callback. Any callback whose `state`
+  // doesn't match is rejected, preventing an attacker from injecting their own
+  // authorization code into our loopback listener.
+  const state = crypto.randomBytes(32).toString('base64url');
   const authorizeUrl = new URL(STRAVA_OAUTH_AUTHORIZE);
   authorizeUrl.searchParams.set('client_id', creds.clientId);
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('redirect_uri', redirectUri);
   authorizeUrl.searchParams.set('approval_prompt', 'auto');
   authorizeUrl.searchParams.set('scope', scopes);
+  authorizeUrl.searchParams.set('state', state);
 
-  const code = await captureAuthCode(port, authorizeUrl.toString());
+  const code = await captureAuthCode(port, authorizeUrl.toString(), state);
 
   const tokens = await postToken({
     client_id: creds.clientId,
@@ -304,7 +311,7 @@ export async function login(scopes: string = DEFAULT_SCOPES): Promise<LoginResul
 }
 
 /** Start a one-request loopback server, open the browser, and resolve the code. */
-function captureAuthCode(port: number, authorizeUrl: string): Promise<string> {
+function captureAuthCode(port: number, authorizeUrl: string, expectedState: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const reqUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
@@ -314,11 +321,22 @@ function captureAuthCode(port: number, authorizeUrl: string): Promise<string> {
       }
       const error = reqUrl.searchParams.get('error');
       const code = reqUrl.searchParams.get('code');
+      const state = reqUrl.searchParams.get('state');
       res.writeHead(200, { 'content-type': 'text/html' });
       if (error || !code) {
         res.end(htmlPage('Authorization failed', `You can close this tab. (${error ?? 'no code returned'})`));
         cleanup();
         reject(new AppError('auth', `Authorization was denied or failed: ${error ?? 'no code'}`));
+        return;
+      }
+      if (!state || !safeEqual(state, expectedState)) {
+        res.end(htmlPage('Authorization failed', 'You can close this tab. (state mismatch)'));
+        cleanup();
+        reject(
+          new AppError('auth', 'Authorization state mismatch — the callback did not match this login request.', {
+            hint: 'This can happen if a stale browser tab completed the flow. Re-run `strava auth login`.',
+          }),
+        );
         return;
       }
       res.end(htmlPage('Authorization complete', 'You can close this tab and return to the terminal.'));
@@ -368,7 +386,19 @@ function openBrowser(url: string): void {
 }
 
 function htmlPage(title: string, message: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family:system-ui;max-width:32rem;margin:4rem auto;text-align:center"><h1>${title}</h1><p>${message}</p></body></html>`;
+  const t = escapeHtml(title);
+  const m = escapeHtml(message);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${t}</title></head><body style="font-family:system-ui;max-width:32rem;margin:4rem auto;text-align:center"><h1>${t}</h1><p>${m}</p></body></html>`;
+}
+
+/** Escape a string for safe interpolation into HTML text/attribute context. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function safeJson(text: string): unknown {
@@ -377,4 +407,12 @@ function safeJson(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+/** Constant-time string comparison to avoid leaking the state via timing. */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
